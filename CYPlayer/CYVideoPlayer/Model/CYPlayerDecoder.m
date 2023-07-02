@@ -1302,7 +1302,7 @@ extern  URLProtocol ff_libsmbclient_protocol;
         const NSUInteger iStream = n.integerValue;
 
         if (0 == (_formatCtx->streams[iStream]->disposition & AV_DISPOSITION_ATTACHED_PIC)) {
-            if (1) {
+            if (_useHWDecompressor) {
                 errCode = [self openHWVideoStream: iStream];
             } else {
                 errCode = [self openVideoStream: iStream];
