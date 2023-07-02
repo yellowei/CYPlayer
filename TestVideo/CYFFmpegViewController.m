@@ -189,7 +189,7 @@
     }];
     vc.delegate = self;
     vc.autoplay = YES;
-    vc.generatPreviewImages = NO;
+    vc.generatPreviewImages = YES;
     [self.contentView addSubview:vc.view];
     
     [vc.view mas_makeConstraints:^(MASConstraintMaker *make) {

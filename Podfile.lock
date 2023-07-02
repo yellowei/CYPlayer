@@ -1,5 +1,5 @@
 PODS:
-  - CYFFmpeg (0.3.3)
+  - CYFFmpeg (1.0.0)
   - Masonry (1.1.0)
   - NSLogger (1.9.7):
     - NSLogger/ObjC (= 1.9.7)
@@ -17,10 +17,10 @@ SPEC REPOS:
     - NSLogger
 
 SPEC CHECKSUMS:
-  CYFFmpeg: 031f5982ad33ae1481d93370b00b39c85a683cf6
+  CYFFmpeg: 60059c779d9a3f165ff2db6d1e23eee0b67f725d
   Masonry: 678fab65091a9290e40e2832a55e7ab731aad201
   NSLogger: cf3013a4fba189f631f07e6c3d5b8ce2b209654b
 
-PODFILE CHECKSUM: cb0fcc53e755c838f4827862b72416271e6bed12
+PODFILE CHECKSUM: f914b96dae73a31dcbe7f866421d6d9f4491cbcf
 
 COCOAPODS: 1.11.2

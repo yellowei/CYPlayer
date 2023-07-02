@@ -2,7 +2,7 @@
 Pod::Spec.new do |s|
 
 s.name         = "CYPlayer"
-s.version      = "3.0.2"
+s.version      = "3.1.0"
 s.summary      = 'A iOS video player, using AVPlayer&FFmpeg. Libraries: CYSMBClient, CYfdkAAC, CYx264, CYFFmpeg'
 s.description  = 'A iOS video player, using AVFoundation&FFmpeg. Libraries: CYSMBClient, CYfdkAAC, CYx264, CYFFmpeg. https://github.com/yellowei/CYPlayer'
 s.homepage     = 'https://github.com/yellowei/CYPlayer'
@@ -22,12 +22,19 @@ s.user_target_xcconfig = {     'FRAMEWORK_SEARCH_PATHS' => '"${PODS_ROOT}/CYPlay
 
 
 s.pod_target_xcconfig = {
-    'VALID_ARCHS' => 'arm64 armv7 x86_64',
+    'VALID_ARCHS' => 'arm64 x86_64',
     'FRAMEWORK_SEARCH_PATHS' => '"${PODS_ROOT}/CYPlayer"',
     'HEADER_SEARCH_PATHS' => '"${PODS_ROOT}/CYPlayer"' ,
     'OTHER_LDFLAGS'            => '$(inherited) -ObjC',
     'ENABLE_BITCODE'           => 'NO'
 }
+
+
+# M1的mac上模拟器也支持arm64，
+# 所以xcode12+的版本在为模拟器build时会加入arm64的支持，
+# 但intel的mac上此操作会导致构建失败，比较intel的mac上的模拟器仅x86_64
+s.pod_target_xcconfig = {'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'arm64'}
+s.user_target_xcconfig = {'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'arm64'}
 
 
 
@@ -181,6 +188,7 @@ end
 ss.subspec 'TimerControl' do |sss|
 sss.source_files = 'CYPlayer/CYVideoPlayer/TimerControl/*.{h,m}'
 end
+
 
 
 # ########

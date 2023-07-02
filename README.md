@@ -12,8 +12,6 @@ CYPlayer是一个基于FFmpeg作为解码内核的播放器SDK，并且同时支
 
 此外，CYPlayer已经在Cocoapods发布，直接通过pods安装就可以使用。代码已做了UI和解码核心的分离，将解码核心ffmpeg部分单独打包为CYFFmpeg（如果只需用到ffmpeg，直接pods安装此CYFFmpeg即可），CYFFmpeg支持还支持ffmpeg命令行方式的调用。
 
-如果觉得不错就star吧~
-
 ![Logo](https://raw.githubusercontent.com/yellowei/CYPlayer/master/icon-2.png)     ![ffmpeg](https://raw.githubusercontent.com/yellowei/CYPlayer/master/ffmpeg_logo.png)
 
 
@@ -49,7 +47,9 @@ pod 'CYPlayer'
 
 - [x] ✅ 支持x86_64模拟器调试和armv7/arm64真机调试；
 
-- [x] ✅ Enable Bitcode=YES；
+- [ ] ✅ Enable Bitcode=YES；
+
+  > Xcode14不再支持此特性
 
 - [x] ✅ 开箱即用。
 
@@ -100,7 +100,9 @@ dispatch_semaphore_signal([CYGCDManager sharedManager].av_read_frame_lock);
 
 - [x] ✅ 支持x86_64模拟器、armv7/arm64真机运行；
 
-- [x] ✅ Enable Bitcode=YES；
+- [ ] ✅ Enable Bitcode=YES；
+
+  > Xcode14不再支持此特性
 
 - [x] ✅ 开箱即用。
 
@@ -112,9 +114,9 @@ dispatch_semaphore_signal([CYGCDManager sharedManager].av_read_frame_lock);
 <img src="https://raw.githubusercontent.com/yellowei/CYPlayer/master/prew-1.png" width="251" height="480" align="middle" /><img src="https://raw.githubusercontent.com/yellowei/CYPlayer/master/prew-2.png" width="480" height="251" align="middle" />
 
 
-## 简单的代码
+## 示例用法
 
-### Objective-C中的使用
+### 在Objective-C中使用
 
 ViewController.m
 
@@ -219,7 +221,9 @@ AppDelegate.m
 
 ```
 
-### Swift中的使用
+
+
+### 在Swift中使用
 
 
 Podfile中需要加入"use_frameworks!"
@@ -325,7 +329,15 @@ func application(_ application: UIApplication, supportedInterfaceOrientationsFor
 
 ```
 
+
+
 ## 注意
+
+**从3.1.0开始,全面支持Xcode14**
+
+**CYFFmpeg也升级到了1.0.0, 只需支持x86_64和arm64架构**
+
+**历史版本不推荐使用**
 
 ```
 因为新版Xcode不再提供32位模拟器
@@ -345,6 +357,7 @@ pod安装CYPlayer后,如果遇到xcode无法调试的问题
 
 删除OTHER_LDFLAGS中的-read_only_relocs suppress, 尝试真机能否运行
 ```
+
 
 
 ## 相关阅读
