@@ -15,8 +15,14 @@ CYPlayer是一个基于FFmpeg作为解码内核的播放器SDK，并且同时支
 ![Logo](https://raw.githubusercontent.com/yellowei/CYPlayer/master/icon-2.png)     ![ffmpeg](https://raw.githubusercontent.com/yellowei/CYPlayer/master/ffmpeg_logo.png)
 
 
-## 通过cocoapods安装播放器到项目
+## 前言
 
+之前的CYPlayer库已删除，3.1.0是重制版本
+
+
+## 安装方法
+
+通过cocoapods安装播放器到项目
 ```
 pod 'CYPlayer'
 ```
