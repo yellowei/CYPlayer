@@ -26,9 +26,9 @@ s.pod_target_xcconfig = {
     'FRAMEWORK_SEARCH_PATHS' => '"${PODS_ROOT}/CYPlayer"',
     'HEADER_SEARCH_PATHS' => '"${PODS_ROOT}/CYPlayer"' ,
     'OTHER_LDFLAGS'            => '$(inherited) -ObjC',
-    'ENABLE_BITCODE'           => 'NO'
+    'ENABLE_BITCODE'           => 'NO',
+    'IPHONEOS_DEPLOYMENT_TARGET' => '11.0'
 }
-
 
 # M1的mac上模拟器也支持arm64，
 # 所以xcode12+的版本在为模拟器build时会加入arm64的支持，
