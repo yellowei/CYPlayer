@@ -1,0 +1,707 @@
+name: spec-driven-standard
+version: 1
+description: Spec-driven workflow with clarify gate, related-surface survey, tiered authoring (orchestrator or single subagent) and review loop - clarify → proposal → specs → design → tasks
+artifacts:
+  - id: clarify
+    generates: clarify.md
+    description: Requirement and architecture clarification record
+    template: clarify.md
+    instruction: |
+      **Orchestration contract (addressed to YOU, the orchestrating agent)**:
+      Duties are split into three phases. You personally run Phase 1 and
+      Phase 3. Phase 2 is TIERED by change complexity: for SIMPLE changes
+      you write proposal/specs/design/tasks yourself; for COMPLEX changes a
+      single fresh generation subagent writes them. No subagent ever writes
+      clarify.md - you write it yourself as the interview record.
+
+      Phase 1 - Interview (you): investigate the codebase and existing
+      openspec/specs/ first, then interview the user in rounds over a
+      decision tree using the frontier mechanics (methodology below),
+      recording questions and answers directly into <changeRoot>/clarify.md
+      as you go (sections below) - there is no separate interview file.
+      HARD-GATE: the interview is over only when every branch of the decision
+      tree has been visited, no doubt is left open, nothing is silently
+      assumed; then first present a simple, direct plan summary to the user
+      and get an explicit confirmation of the direction - do NOT start
+      Phase 2 (authoring) until the user has confirmed it (details in
+      methodology below). The execution boundary (执行边界) is NOT produced
+      during the interview: tasks.md does not exist yet, so the boundary is
+      produced in one place only - by the architecture review in Phase 3.
+
+      Phase 2 - Authoring (TIERED): only after the user has explicitly
+      confirmed the plan summary (HARD-GATE above), decide the tier using
+      the complexity criteria below, record the decision and one-line
+      rationale in clarify.md, then
+      follow the matching mode:
+      - SIMPLE tier: you personally produce the remaining artifacts
+        (proposal → specs → design → tasks) in dependency order. For each
+        artifact run `openspec instructions <artifact-id> --change
+        "<name>" --json` yourself, read the project's AGENTS.md and
+        openspec/config.yaml rules plus the dependency artifacts (starting
+        from the clarify.md you wrote), and write to the resolved output
+        path. Do not dispatch any subagent for authoring.
+      - COMPLEX tier: dispatch a single fresh general-purpose subagent
+        with the change name. It produces the remaining artifacts in one
+        session: for each it runs
+        `openspec instructions <artifact-id> --change "<name>" --json`
+        itself, reads the project's AGENTS.md and openspec/config.yaml
+        rules plus the dependency artifacts, and writes to the resolved
+        output path. It may only read/write inside the change directory
+        (openspec/changes/<name>/). It must not dispatch further
+        subagents, and its final report MUST end by telling you to start
+        Phase 3.
+
+      Authoring follows the direction confirmed in clarify.md; the execution
+      boundary is not part of authoring - it is produced by the architecture
+      review in Phase 3.
+
+      Complexity criteria - COMPLEX if ANY applies, otherwise SIMPLE:
+      - touches 2+ capabilities or 2+ task groups with cross-group
+        dependencies;
+      - significant data-model change (new tables, many columns, or any
+        data migration);
+      - new external dependency, new architectural pattern, or notable
+        security/performance/migration complexity;
+      - expected total artifact size would push your context near the
+        window limit if you wrote them yourself (large DDL, long task
+        lists, multi-spec changes).
+      When in doubt, choose COMPLEX: it keeps the orchestrating agent's
+      context lean and is the safer default.
+
+      Phase 3 - Architecture review (you, once authoring is complete):
+      1. Dispatch an independent architecture reviewer subagent (fresh
+         session — never reuse the generation subagent). Prefer a dedicated
+         architecture-review subagent when the project makes one available;
+         when the environment has none, use a general-purpose subagent. In
+         both cases inject the full text of the standard's
+         `agents/architecture-review.md` (installed at
+         openspec/schemas/spec-driven-standard/agents/) as the reviewer's task
+         description — that file is the single source of truth for the
+         reviewer's duties, so inject it verbatim instead of paraphrasing it.
+         A dedicated subagent follows it as well; the dispatch note may stack
+         on top of its own definition.
+         The reviewer must:
+         - run `openspec validate "<name>" --strict` for structural checks
+           (note: validate takes the change name as a positional argument,
+           no --change flag);
+         - check every artifact against the openspec/config.yaml rules for
+           its stage, the schema templates/instructions, and cross-document
+           consistency (clarify direction ↔ proposal capabilities ↔ specs
+           requirements ↔ design decisions ↔ tasks with [spec:...]
+           traceability tags);
+         - assess whether the architecture options the user already confirmed
+           in clarify.md's Architecture Direction are sound: fit with the
+           repository's existing architecture lineage, long-term evolution,
+           compatibility with existing contracts and behaviour, parallel
+           implementations / technical debt, and the rule-boundary
+           conclusions. Architecture skills are loaded by capability category
+           (match against the available skill descriptions — never hardcode a
+           skill name); when no matching skill is available, report the
+           degradation in the review report;
+         - for changes that add or alter a rule, validation or blocking check,
+           or introduce/reorder an execution path, check the rule-boundary
+           findings entry by entry: the proposal's Rule Boundary section, the
+           design's mount point, and the spec's blocked / allowed /
+           equivalent-path scenarios must all match the rule-boundary
+           conclusions recorded in clarify.md - use the clarify record as the
+           baseline and do not invent criteria;
+         - read openspec/specs/ main specs (read-only) and cross-check:
+           proposal capabilities actually exist there, and delta
+           requirements/contracts (e.g. error codes, rate-limit semantics,
+           existing implementations) do not conflict with what the main
+           specs already establish;
+         - produce the execution boundary (执行边界) the apply workflow
+           reads: one entry per task group of tasks.md, in exactly this
+           machine-readable shape (it is the first yaml fence of the Execution
+           Boundary section; allowed_directories and allowed_packages must be
+           non-empty string arrays, notes may be empty or omitted):
+           ```yaml
+           task_groups:
+             "1":
+               allowed_directories:
+                 - "src/core"
+               allowed_packages:
+                 - "src/core/x"
+               notes: "optional implementation notes"
+           ```
+           Keep the boundary minimal and real - only the directories and
+           packages the task group must change (its tests included), never
+           the whole repository by default;
+         - write findings to <changeRoot>/.review/issues.md, one block per
+           issue with fields: severity | file | problem | suggested fix;
+           write "PASS" when clean. In a read-only harness the reviewer only
+           returns its report and YOU write the file. The .review/ directory
+           exists only for this working file during the loop - never use it
+           to record anything else.
+      2. If issues.md is not "PASS", YOU fix every issue yourself
+         (change-directory documents only; you must not modify issues.md
+         itself, and you must not delegate fixes to a subagent — fixing
+         in your own context is the token-saving design). When an issue
+         would change an architecture direction the user already confirmed,
+         NEVER overwrite it silently: go back to the user and re-run the plan
+         confirmation gate (present the revised direction, get an explicit
+         confirmation), record the reconfirmed direction in clarify.md's
+         Architecture Direction, and only then fix the remaining documents.
+      3. Re-dispatch the architecture reviewer for a fresh full review; loop
+         until "PASS" or 3 review rounds. After 3 rounds with remaining
+         issues, stop and present the leftover issues to the user.
+      4. On "PASS", write the review's execution boundary into clarify.md's
+         Execution Boundary section (执行边界, shape above), then delete the
+         .review/ directory, and only then hand the change over to the apply
+         workflow.
+
+      Do NOT hand over to the apply workflow before Phase 3 ends with
+      "PASS" (or with leftover issues explicitly accepted by the user).
+
+      Create the clarify document that records the requirement clarification and
+      architecture direction exploration BEFORE any proposal is written. This
+      artifact is MANDATORY for every change - it captures the think-before-build
+      phase, grounded in the actual codebase and existing specs.
+
+      Methodology:
+      - Investigate the codebase and existing openspec/specs/ first. Ground every
+        question in real code; do not theorize without reading the relevant modules.
+      - Surface unknowns across these dimensions and resolve them with the
+        user by interviewing in rounds over a decision tree (every decision
+        branches into the decisions that hang off it):
+        * Problem & intent: what problem is being solved? what is the success criteria?
+        * Scope: what is in/out of bounds? is the change decomposable into sub-changes?
+        * Related-surface survey (关联场景清点): complete the survey BEFORE the
+          first interview round and treat it as input to the decision tree, not
+          just a documentation step. Enumerate every consumer of the
+          capability being changed, grounded in real code — functional entry points
+          (API endpoints, import/export entries, scheduled jobs, message consumers,
+          frontend calls), shared processing logic reused by multiple entry points,
+          and downstream data consumers (readers/writers of the tables, fields,
+          events, or export artifacts involved). Record each finding with code
+          evidence (file/class/method) in clarify.md's Related-Surface Survey
+          section. Every surveyed surface becomes a decision-tree branch that
+          MUST be resolved IN the interview: for each, ask the user whether it
+          is adapted in this change or excluded with a reason, and record the
+          verdict. One repository only: the change covers the repository this
+          session works in. When the project keeps frontend and backend in
+          separate repositories, a surface that lives in the other repository
+          (e.g. the frontend repo while authoring a backend change) is excluded
+          by default - record it as out of scope with that reason, to be
+          adapted by a change in its own repository. Only when the user
+          explicitly asks for a cross-repository change does it get scoped in,
+          and then the split (which repository owns which part, and how each
+          side is implemented and verified) must be recorded.
+          Consistency branches are mandatory: when the same data has
+          multiple persistence paths (e.g. import, save, and update all writing
+          the same table), whether and how their validation and processing
+          logic stay shared and consistent must be asked and decided by the
+          user — touching only the requested path while skipping the related
+          paths means the interview is NOT exhausted. When shared processing
+          logic changes, every consuming entry point must be adapted within
+          the SAME change; splitting into separate changes requires an
+          explicit boundary rationale confirmed by the user.
+        * Data model: which entities/tables/fields are involved? any new tables or columns?
+        * Business rules: which are deterministic vs non-deterministic, per the
+          project's conventions (see AGENTS.md)?
+        * Rule boundary (规则边界推演): for every business rule, validation or
+          blocking check this change adds or alters - and for every execution
+          path or action sequence the change introduces or reorders - work out
+          and resolve with the user, as branches of the decision tree:
+          1) judgement condition and exception: which cases must be blocked,
+             and which look similar but must be allowed (state the minimal
+             condition under which the block applies);
+          2) legitimate counter-examples: every functionally legal scenario the
+             new rule would wrongly block, and the handling each one should get
+             (each becomes an "allowed" scenario in the spec);
+          3) equivalent paths and the mount point of the check: whether the same
+             business intent has more than one execution path (several screens,
+             several endpoints, an action composed of other actions - e.g.
+             switching a user's role implemented as remove-then-add), and which
+             action or layer the check is mounted on; the check belongs on the
+             business-intent action, never on a lower-level action that other
+             flows reuse.
+          Also ask whether this change introduces or reorders any execution
+          path; if so, go through every EXISTING rule, validation or blocking
+          check and decide whether it should still fire on the new path
+          (blocked when it should not be, not blocked when it should be).
+          Division of labour: the Related-surface survey enumerates WHO is
+          affected; this branch decides whether the judgement itself holds. The
+          multiple-persistence-path consistency branch keeps the judgement
+          semantics consistent across paths (no missed blocking); this branch's
+          mount point keeps the check off shared low-level actions (no wrongful
+          blocking).
+        * Integration boundaries: external systems, APIs, ports/adapters?
+        * Architecture direction: propose 2-3 approaches with tradeoffs and a recommendation.
+      - Round mechanics: each round asks every question whose prerequisites
+        are already settled (the whole frontier at once) via the question
+        tool, numbered, each with your recommended answer; then wait for the
+        user's answers before the next round. A question whose answer
+        depends on one still open in this round belongs to a later round.
+        Facts are yours to find (codebase, specs, tools) - never ask the
+        user for anything you can look up yourself; the decisions are the
+        user's. Rounds continue until the frontier is empty: every branch
+        visited, no doubt left unresolved, nothing silently assumed, and
+        every related-surface survey entry carries a user-confirmed scoping
+        verdict.
+      - Sequencing prohibition: while the interview is still open (the
+        frontier is not empty, or any related-surface survey entry lacks a
+        user-confirmed verdict), do NOT present the plan or a plan summary
+        and ask the user to confirm it. The recommended answer attached to
+        each question is not the plan and must never be presented as one;
+        do not fold plan confirmation into any interview round. If the user
+        asks for the plan mid-interview, say the interview is not finished
+        yet, you may recap what has already been settled, and keep asking
+        until the frontier is empty — only then use the plan confirmation
+        gate.
+      - Challenge assumptions (yours and the user's). Reframe the problem when needed.
+      - Plan confirmation gate (HARD-GATE): once the interview rounds have
+        exhausted every open doubt (frontier empty — see the sequencing
+        prohibition above) and before starting
+        Phase 2 (authoring — whether by you or
+        by a generation subagent), present a direct plan summary to
+        the user and stop for confirmation. The summary MUST be structured:
+        number each element below and give it real substance — a
+        two-or-three-sentence blob is an invalid summary, expand it before
+        presenting. The elements:
+        1. what the change does, in one sentence, THEN the change
+           contents itemized one item per line in plain business
+           language: each item is a natural-language sentence of the
+           form 「导出功能新增「状态」字段」, expanded as far as it helps
+           the user judge the change (e.g. where the new field comes
+           from, what it gives the user) rather than a bare label. No
+           code-level identifiers — same language rule as element 4
+           below;
+        2. whether it touches contracts (API parameters or DDL);
+        3. the chosen approach and its key trade-offs versus the
+           alternatives;
+        4. the implementation logic, step by step, in plain business
+           language (人话) — where the data comes from, what validation and
+           processing it goes through, where it lands, and how each related
+           path is adapted. Do NOT use code-level identifiers (class,
+           method, or internal function names) unless the user explicitly
+           asked for technical depth; contract facts (table, column, and
+           endpoint names) are exempt and stay precise;
+        5. the related-surface verdicts: for every surveyed surface,
+           adapted in this change or excluded, each with a one-line reason;
+        6. the capabilities affected.
+        7. the rule-boundary verdicts: for every rule this change adds or
+           alters, the blocking condition, the exceptions and legitimate
+           counter-examples that must be allowed, and the equivalent execution
+           paths with the mount point of the check - each with its verdict.
+        Present it as a
+        plain message — do NOT use the question tool for this confirmation
+        (the question tool belongs to the interview rounds, not to this
+        confirmation) — and stop for the user's free-text reply. Interview
+        answers do NOT count as confirmation — the confirmation must be a
+        direct user response to this summary. If the user requests changes,
+        revise the summary and re-present; loop until the user explicitly
+        confirms. Record the confirmed summary in clarify.md's Architecture
+        Direction section. "Too simple to need clarification" is not a
+        valid reason to skip; the clarify record may be short but must
+        exist, and this confirmation step is still mandatory.
+
+      Sections (see template):
+      - **Open Questions**: the unknowns surfaced, one per bullet.
+      - **User Answers**: the user's responses, captured verbatim or summarized.
+      - **Related-Surface Survey**: the related-surface survey output (关联场景清点) —
+        every consuming entry point / shared processing logic / downstream
+        consumer with code evidence, and the scoping verdict for each —
+        every verdict confirmed by the user during the interview. Shared
+        processing logic changes must be covered together with all their
+        consuming entry points in the same change.
+      - **Architecture Direction**: the crystallized approach, key decisions,
+        alternatives considered, and the confirmed plan summary with
+        the user's explicit confirmation — the summary structured per the
+        seven elements of the plan confirmation gate (including the
+        itemized plain-language change list, the plain-language
+        implementation outline, the related-surface verdicts and the
+        rule-boundary verdicts),
+        presented as a plain message only after the interview
+        was exhausted. The rule-boundary conclusions must appear here item by
+        item for changes that add or alter a rule, validation or blocking
+        check, or that introduce or reorder an execution path.
+        This is the HARD-GATE output.
+      - **Authoring Tier**: SIMPLE or COMPLEX with a one-line rationale
+        (criteria in the Phase 2 complexity criteria above), recorded before
+        authoring starts; SIMPLE means the orchestrating agent writes the
+        remaining artifacts itself, COMPLEX means one fresh generation
+        subagent writes them.
+      - **Execution Boundary (执行边界)**: written by you from the Phase 3
+        architecture review after "PASS" - one entry per task group in the
+        machine-readable shape defined in Phase 3 (the section's first yaml
+        fence). Missing or unparsable means the apply workflow falls back to
+        the whole worktree.
+      - **Initial Capabilities**: preliminary guess of which specs will be touched
+        (kebab-case). Finalized in proposal.md.
+
+      This is the foundation for proposal, specs, design, and tasks. All later
+      artifacts must stay consistent with the direction recorded here.
+    requires: []
+  - id: proposal
+    generates: proposal.md
+    description: Initial proposal document outlining the change
+    template: proposal.md
+    instruction: |
+      **Generation (process constraint)**: This artifact is written by exactly
+      one author — either YOU, the orchestrating agent (SIMPLE tier), or the
+      ONE independent generation subagent dispatched once for the change
+      (COMPLEX tier) — never one subagent per artifact, and never by both.
+      The full orchestration contract (interview, tier decision, authoring,
+      review loop) lives in the clarify artifact's instruction; read it
+      first if you have not. The author runs
+      `openspec instructions <artifact-id> --change "<name>" --json`, reads
+      the project's AGENTS.md and openspec/config.yaml rules plus the
+      dependency artifacts (including the clarify.md written by the
+      orchestrating agent), then writes to the resolved output path. If a
+      generation subagent is the author, it may only read/write inside the
+      change directory (openspec/changes/<name>/).
+
+      Create the proposal document that establishes WHY this change is needed.
+
+      Sections:
+      - **Why**: 1-2 sentences on the problem or opportunity. What problem does this solve? Why now?
+      - **What Changes**: Bullet list of changes. Be specific about new capabilities, modifications, or removals. Mark breaking changes with **BREAKING**.
+      - **Related Surface (关联场景)**: the survey conclusions from clarify.md —
+        every consuming entry point / shared processing logic / downstream
+        consumer with code evidence and its scoping verdict (adapted in this
+        change, or explicitly justified out). The verdicts recorded here must
+        match the user-confirmed verdicts from the clarify.md interview.
+        When shared processing logic
+        changes, every consuming entry point must be adapted in THIS change;
+        splitting into separate changes requires a boundary rationale section
+        confirmed by the user. A bare "no related impact" without search
+        evidence counts as an incomplete proposal. The one-repository boundary
+        from the clarify survey applies here: a surface living in the other
+        repository of a split frontend/backend project is excluded with that
+        reason (it is adapted by a change in its own repository), unless the
+        user explicitly asked for a cross-repository change - in which case the
+        split (which repository owns which part) must be stated.
+      - **Implementation Outline (实施逻辑)**: how the change plays out, step by
+        step, in plain business language (人话) — where the data comes from,
+        what validation and processing it goes through, where it lands, and
+        how each related path scoped into this change (per the Related
+        Surface section above) is adapted. What Changes lists WHAT changes;
+        this section walks through HOW it plays out, as numbered steps. Same
+        language rule as the plan summary: no code-level identifiers (class,
+        method, or internal function names) unless the user explicitly asked
+        for technical depth; contract facts (table, column, and endpoint
+        names) are exempt and stay precise.
+      - **Rule Boundary (规则边界)**: required when this change adds or alters a
+        business rule, validation or blocking check, or introduces/reorders an
+        execution path; otherwise state 「不适用」 with a one-line reason. One
+        table row per rule - the blocking condition, the exceptions and
+        legitimate counter-examples that must be allowed (with their intended
+        handling), and the mount point of the check - plus one line per
+        equivalent execution path with its verdict. The reasoning method lives
+        in the Rule boundary branch of the clarify instruction; do not restate
+        it here.
+      - **Capabilities**: Identify which specs will be created or modified:
+        - **New Capabilities**: List capabilities being introduced. Each becomes a new `specs/<capability-path>/spec.md`. Use kebab-case for path segments you introduce (e.g., `user-auth` or `identity/user-auth`) and follow the project's existing spec organization.
+        - **Modified Capabilities**: List existing capabilities whose REQUIREMENTS are changing. Only include if spec-level behavior changes (not just implementation details). Each needs a delta spec file. Use the exact existing path under `openspec/specs/`. Leave empty if no requirement changes.
+      - **Impact**: Affected code, APIs, dependencies, or systems.
+
+      IMPORTANT: The Capabilities section is critical. It creates the contract between
+      proposal and specs phases. Research existing specs before filling this in.
+      Each capability listed here will need a corresponding spec file.
+
+      Every change must either declare at least one capability (new or
+      modified) or explicitly opt out of specs: `openspec validate` rejects a
+      change with zero deltas unless the change's `.openspec.yaml` sets
+      `skip_specs: true`. Use `skip_specs: true` only when no spec-level
+      behavior changes (pure refactor, tooling, docs) - specs describe
+      behavior, so if behavior does not change, no spec should change either.
+      Do not invent a requirement just to satisfy validation.
+
+      Keep it concise (1-2 pages). The proposal covers the why and the
+      plain-language how (the Implementation Outline); code-level details
+      (class/method structure, DDL design, technology-choice argumentation)
+      belong in design.md. Stay consistent with
+      clarify.md's architecture direction; if the proposal drifts from clarify,
+      update clarify first and get user confirmation.
+
+      This is the foundation - specs, design, and tasks all build on this.
+    requires:
+      - clarify
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Detailed specifications for the change
+    template: spec.md
+    instruction: |
+      **Generation (process constraint)**: This artifact is written by exactly
+      one author — either YOU, the orchestrating agent (SIMPLE tier), or the
+      ONE independent generation subagent dispatched once for the change
+      (COMPLEX tier) — never one subagent per artifact, and never by both.
+      The full orchestration contract (interview, tier decision, authoring,
+      review loop) lives in the clarify artifact's instruction; read it
+      first if you have not. The author runs
+      `openspec instructions <artifact-id> --change "<name>" --json`, reads
+      the project's AGENTS.md and openspec/config.yaml rules plus the
+      dependency artifacts (including the clarify.md written by the
+      orchestrating agent), then writes to the resolved output path. If a
+      generation subagent is the author, it may only read/write inside the
+      change directory (openspec/changes/<name>/).
+
+      Create specification files that define WHAT the system should do.
+
+      A spec is a behavior contract, not an implementation plan.
+
+      Good spec content:
+      - Observable behavior users or downstream systems rely on
+      - Inputs, outputs, and error conditions
+      - External constraints (security, privacy, reliability, compatibility)
+      - Scenarios that can be tested or explicitly validated
+
+      Avoid in specs:
+      - Internal class/function names
+      - Library or framework choices
+      - Step-by-step implementation details
+      - Detailed execution plans (those belong in design.md or tasks.md)
+
+      Quick test: if the implementation can change without changing externally
+      visible behavior, it likely does not belong in the spec.
+
+      Create one spec file per capability listed in the proposal's Capabilities section.
+      `<capability-path>` is the spec directory relative to `specs/` (for example,
+      `user-auth` or `identity/user-auth`). Preserve the full path:
+      - New capabilities: use the exact path from the proposal at `specs/<capability-path>/spec.md`. Any path segment newly introduced in the proposal must be kebab-case. Follow the project's existing organization; do not add a new domain level when the project uses a flat layout.
+      - Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Do not move or rename the capability.
+
+      There must be at least one spec file unless the change's `.openspec.yaml`
+      sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`
+      rejects a zero-delta change without that marker. If the proposal lists no
+      capabilities and `skip_specs` is not set, revisit the proposal first.
+
+      Delta operations (use ## headers):
+      - **ADDED Requirements**: New capabilities
+      - **MODIFIED Requirements**: Changed behavior - MUST include full updated content
+      - **REMOVED Requirements**: Deprecated features - MUST include **Reason** and **Migration**
+      - **RENAMED Requirements**: Name changes only - use FROM:/TO: format
+
+      Format requirements:
+      - Each requirement: `### Requirement: <name>` followed by description
+      - Use SHALL/MUST for normative requirements (avoid should/may)
+      - Each scenario: `#### Scenario: <name>` with WHEN/THEN format
+      - **CRITICAL**: Scenarios MUST use exactly 4 hashtags (`####`). Using 3 hashtags or bullets will fail silently.
+      - Every requirement MUST have at least one scenario.
+      - Rule-type changes (a business rule, validation or blocking check added
+        or altered, or an execution path introduced/reordered) need one Scenario
+        per rule-boundary conclusion, covering three kinds: blocked (with the
+        minimal blocking condition), allowed (exceptions and legitimate
+        counter-examples), and allowed on equivalent execution paths (one
+        Scenario per path). Conclusions that do not apply are stated with a
+        reason. A spec with only blocked-side scenarios is incomplete.
+      - The scenario taxonomy has four kinds in total: the three rule-boundary
+        kinds above (for rule-type changes) plus the cross-interface business
+        chain below (for changes that span more than one interface). The fourth
+        kind applies independently of the first three - a change can be
+        rule-free and still need a chain scenario.
+      - Cross-interface business chains (跨接口业务链路): when the change touches
+        a business chain that spans more than one interface - several endpoints,
+        an import entry feeding a later save/update, a job followed by a query -
+        the chain itself is a mandatory scenario kind and must be written as one
+        testable full chain: WHEN states the order of operations (entry point,
+        then each subsequent step in sequence, with the precondition the data
+        must already be in), THEN states the field contents the later query
+        returns, field by field (defaults, derived values, status markers
+        included). Splitting the chain into one scenario per endpoint does not
+        satisfy this: it hides the ordering effect between interfaces.
+      - When the same data has more than one write path (import, save, update,
+        batch sync), the ordering effect between those paths is a chain scenario
+        too: run path A then path B on the same data and assert what the later
+        read-back returns for each field.
+
+      New capabilities only: start the delta spec with a `## Purpose` section -
+      one or two sentences (50+ characters, or `openspec validate --strict`
+      reports it as too brief) describing what the capability is for. Archive
+      copies it into the main spec it creates; without it the new main spec is
+      left with a `TBD ... Update Purpose after archive` placeholder to fill in
+      by hand. Do NOT add `## Purpose` to a delta for an existing capability -
+      that spec already has one and the delta's is ignored. To change an
+      existing capability's Purpose - including a leftover `TBD` placeholder -
+      edit `openspec/specs/<capability-path>/spec.md` directly.
+
+      MODIFIED requirements workflow:
+      1. Locate the existing requirement in openspec/specs/<capability-path>/spec.md
+      2. Copy the ENTIRE requirement block (from `### Requirement:` through all scenarios)
+      3. Paste under `## MODIFIED Requirements` and edit to reflect new behavior
+      4. Ensure header text matches exactly (whitespace-insensitive)
+
+      Common pitfall: Using MODIFIED with partial content loses detail at archive time.
+      If adding new concerns without changing existing behavior, use ADDED instead.
+
+      Specs should be testable - each scenario is a potential test case.
+    requires:
+      - proposal
+  - id: design
+    generates: design.md
+    description: Technical design document with implementation details
+    template: design.md
+    instruction: |
+      **Generation (process constraint)**: This artifact is written by exactly
+      one author — either YOU, the orchestrating agent (SIMPLE tier), or the
+      ONE independent generation subagent dispatched once for the change
+      (COMPLEX tier) — never one subagent per artifact, and never by both.
+      The full orchestration contract (interview, tier decision, authoring,
+      review loop) lives in the clarify artifact's instruction; read it
+      first if you have not. The author runs
+      `openspec instructions <artifact-id> --change "<name>" --json`, reads
+      the project's AGENTS.md and openspec/config.yaml rules plus the
+      dependency artifacts (including the clarify.md written by the
+      orchestrating agent), then writes to the resolved output path. If a
+      generation subagent is the author, it may only read/write inside the
+      change directory (openspec/changes/<name>/).
+
+      Create the design document that explains HOW to implement the change.
+
+      When to include design.md (create only if any apply):
+      - Cross-cutting change (multiple services/modules) or new architectural pattern
+      - New external dependency or significant data model changes
+      - Security, performance, or migration complexity
+      - Ambiguity that benefits from technical decisions before coding
+
+      Sections:
+      - **Context**: Only the current state and constraints needed to explain the approach. Reference the proposal for motivation instead of restating it (e.g., "See proposal.md - Why").
+      - **Goals / Non-Goals**: What this design achieves and explicitly excludes. Don't restate the proposal's scope - add only design-level boundaries.
+      - **Decisions**: Key technical choices with rationale (why X over Y?). Include alternatives considered for each decision.
+      - **Data Model**: MANDATORY when the change involves persistence. Complete
+        DDL (CREATE TABLE with columns, types, constraints), field descriptions,
+        indexes, and audit fields. Follow the project's persistence conventions
+        (see AGENTS.md / openspec/config.yaml rules). If the change does not
+        involve persistence, state that explicitly ("本变更不涉及持久化" or the
+        project's equivalent phrasing).
+      - **Rule Boundary Attachment**: MANDATORY when the change adds or alters a
+        business rule, validation or blocking check, or introduces/reorders any
+        execution path. State which action or layer the check is mounted on, and
+        why no other flow reusing that action can trip it. State explicitly when
+        the change involves no rules.
+      - **Risks / Trade-offs**: Known limitations, things that could go wrong. Format: [Risk] → Mitigation
+      - **Migration Plan**: Steps to deploy, rollback strategy (if applicable)
+      - **Open Questions**: Unknowns that can safely be answered later without
+        changing the specs, the approach, or the task breakdown. Omit if none.
+
+      Open questions are for genuinely deferrable unknowns, not decisions you
+      skipped. If a question would change the specs, the chosen approach, or
+      the task breakdown, resolve it now - ask the user instead of guessing.
+
+      Focus on architecture and approach, not line-by-line implementation.
+      The proposal covers why and what; design covers how. Reference the
+      proposal for motivation and, once written, the specs for requirements -
+      if a section would only restate them, point to them instead.
+
+      Good design docs explain the "why" behind technical decisions.
+    requires:
+      - proposal
+  - id: tasks
+    generates: tasks.md
+    description: Implementation checklist with trackable tasks
+    template: tasks.md
+    instruction: |
+      **Generation (process constraint)**: This artifact is written by exactly
+      one author — either YOU, the orchestrating agent (SIMPLE tier), or the
+      ONE independent generation subagent dispatched once for the change
+      (COMPLEX tier) — never one subagent per artifact, and never by both.
+      The full orchestration contract (interview, tier decision, authoring,
+      review loop) lives in the clarify artifact's instruction; read it
+      first if you have not. The author runs
+      `openspec instructions <artifact-id> --change "<name>" --json`, reads
+      the project's AGENTS.md and openspec/config.yaml rules plus the
+      dependency artifacts (including the clarify.md written by the
+      orchestrating agent), then writes to the resolved output path. If a
+      generation subagent is the author, it may only read/write inside the
+      change directory (openspec/changes/<name>/).
+
+      Create the task list that breaks down the implementation work.
+
+      Before writing tasks, check design.md for Open Questions. If any of them
+      would change what gets built, resolve them with the user first - do not
+      bake an unstated assumption into the task list.
+
+      **IMPORTANT: Follow the template below exactly.** The apply phase parses
+      checkbox format to track progress. Tasks not using `- [ ]` won't be tracked.
+
+      Guidelines:
+      - Group related tasks under `## N. <Task Group Name>` numbered headings
+      - Each task MUST be a checkbox: `- [ ] X.Y Task description`
+      - Each task SHOULD end with a traceability tag `[spec:<capability>#<requirement>]`
+        (or `[infra]` for pure cross-cutting infrastructure tasks). Business tasks
+        without a spec target are out of scope - remove them or add the spec
+        requirement first.
+      - **Related-surface coverage (关联场景覆盖)**: the task groups must cover
+        every consuming entry point that the proposal's Related Surface section
+        scopes into this change; an in-scope entry point without an adaptation
+        task counts as an incomplete task list.
+      - **One repository only**: task groups cover this repository's changes.
+        An adaptation that belongs to the other repository of a split
+        frontend/backend project is excluded - out of scope, adapted by a change
+        in its own repository - unless the user explicitly asked for a
+        cross-repository change; in that case the task list must say which
+        repository owns which part.
+      - **Tests stay with the implementation they verify.** Unit tests,
+        integration tests, and API/interface test scripts - including updates
+        to their assertions - are ordinary tasks inside the task group of the
+        implementation that drives them, and they are finished with that group.
+        Never open a task group whose substance is tests or test-script/
+        assertion sync (e.g. a 「XX 契约断言同步」 group), and never pair test
+        sync with another group's leftover work to give it substance:
+        separating tests from the implementation they verify is the same
+        violation as a verification group.
+      - **Each task group = one independent iteration.** Every group MUST contain:
+        implementation + tests + a quality gate (the project's quality gate per
+        openspec/config.yaml rules / AGENTS.md). No standalone QA group - quality
+        is embedded in every iteration. Groups must be independently implementable:
+        when a group is done, the code compiles and tests pass.
+      - **No verification group, pure or mixed.** Pure verification work —
+        quality-gate runs (e.g. a final full build verification), end-to-end / integration /
+        regression / smoke verification, residual-search sweeps (旧键残留检索),
+        regression confirmation — must never form a task group of its own:
+        neither standalone, nor as a "wrap-up" group that mixes them with
+        doc/script/config sync tasks (e.g. 「阶段二收尾：文档、脚本与全量验证」).
+        Fold verification tasks into the functional group they verify. Doc/script/
+        config sync tasks are functional work and join the functional group they
+        accompany — their presence does not legitimize a wrap-up group. Group
+        titles name the delivered business value; 收尾/验证/回归 must never be a
+        group's identity.
+      - **Minimum substance per group.** Every group's body must be substantive
+        change content: at least one task that changes behavior-bearing code or
+        config (implementation + its tests). Doc/script/deploy-doc sync,
+        verification, regression and quality-gate tasks are accompaniment —
+        they may join a functional group but never constitute its substance,
+        and task count does not substitute for substance (a 6-task group of
+        only sync + verification work still violates this rule). The last
+        group of a change is the typical decay spot: when the work remaining
+        for a would-be group is only sync + verification, fold it into the
+        preceding functional group instead of opening a tail group.
+      - Grouping priority (in order):
+        1. **Implementation order**: groups follow the project's layer dependency
+           order (see AGENTS.md / config.yaml rules). Earlier groups define
+           interfaces/models that later groups consume.
+        2. **Coherent scope**: each group delivers a complete, verifiable business
+           value — a feature, a sub-feature, or a set of closely related capabilities.
+        3. **Group size balance**: aim for 4-8 tasks per group. Groups with < 4
+           tasks → merge into an adjacent group. Groups with > 8 tasks → split
+           into focused sub-groups (each with its own tests and quality gate).
+      - Task ordering within a group: dependency chain — define → implement →
+        test → quality gate.
+      - Tasks should be small enough to complete in one session (~5-10 min coding).
+        Implementation details exceeding 10 lines belong in actual code, not as
+        separate sub-tasks.
+
+      Reference specs for what needs to be built, design for how to build it.
+      Each task should be verifiable - you know when it's done.
+
+      **Final report (process constraint)**: When this artifact is written,
+      every artifact of the change exists and the authoring session ends
+      here. You must NOT dispatch any subagent yourself. If you are the
+      generation subagent (COMPLEX tier), your final report MUST end by
+      telling the orchestrating agent to start the review loop (Phase 3 of
+      the clarify artifact's orchestration contract) - without that handoff
+      the review never happens. If you are the orchestrating agent (SIMPLE
+      tier), go straight to Phase 3 yourself and dispatch the independent
+      review subagent.
+    requires:
+      - specs
+      - design
+apply:
+  requires: [tasks]
+  tracks: tasks.md
+  instruction: |
+    Read context files, work through pending tasks, mark complete as you go.
+    Follow the project's implementation conventions (AGENTS.md, openspec/config.yaml
+    rules, and any orchestration workflow the project uses).
+    Pause if you hit blockers or need clarification.
